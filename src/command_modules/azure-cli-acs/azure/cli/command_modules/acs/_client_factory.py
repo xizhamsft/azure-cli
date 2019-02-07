@@ -14,10 +14,11 @@ def cf_compute_service(cli_ctx, *_):
 def cf_container_services(cli_ctx, *_):
     return get_container_service_client(cli_ctx).container_services
 
-
 def cf_managed_clusters(cli_ctx, *_):
     return get_container_service_client(cli_ctx).managed_clusters
 
+def cf_agent_pools(cli_ctx, *_):
+    return get_container_service_client(cli_ctx).agent_pools
 
 def cf_openshift_managed_clusters(cli_ctx, *_):
     return get_osa_container_service_client(cli_ctx).open_shift_managed_clusters

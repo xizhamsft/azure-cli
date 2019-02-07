@@ -129,3 +129,14 @@ def validate_max_pods(namespace):
     if namespace.max_pods != 0 and namespace.max_pods < minimum_pods_required:
         raise CLIError('--max-pods must be at least {} for a managed Kubernetes cluster to function.'
                        .format(minimum_pods_required))
+
+def validate_agentpool_name(namespace):
+    """Validates an agent pool name to be non empty,atmost 12 characters,alphanumeric only"""
+    if not namespace.name:
+        raise CLIError('--name cannot be empty')
+
+    if len(namespace.name) > 12:
+        raise CLIError('--name can contain atmost 12 characters')
+
+    if not namespace.name.isalnum():
+        raise CLIError('--name should only contain alphanumeric characters')

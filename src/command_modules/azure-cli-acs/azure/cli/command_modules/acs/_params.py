@@ -17,7 +17,8 @@ from ._completers import (
     get_vm_size_completion_list, get_k8s_versions_completion_list, get_k8s_upgrades_completion_list)
 from ._validators import (
     validate_create_parameters, validate_k8s_client_version, validate_k8s_version, validate_linux_host_name,
-    validate_list_of_integers, validate_ssh_key, validate_connector_name, validate_max_pods, validate_nodepool_name)
+    validate_list_of_integers, validate_ssh_key, validate_connector_name, validate_max_pods, validate_nodepool_name,
+    validate_agentpool_name)
 
 aci_connector_os_type = ['Windows', 'Linux', 'Both']
 
@@ -177,6 +178,7 @@ def load_arguments(self, _):
         c.argument('vnet_subnet_id')
         c.argument('workspace_resource_id')
         c.argument('skip_subnet_role_assignment', action='store_true')
+        c.argument('enable_vmss', action='store_true')
 
     with self.argument_context('aks disable-addons') as c:
         c.argument('addons', options_list=['--addons', '-a'])
@@ -242,6 +244,9 @@ def load_arguments(self, _):
 
     with self.argument_context('aks remove-dev-spaces') as c:
         c.argument('prompt', options_list=['--yes', '-y'], action='store_true', help='Do not prompt for confirmation')
+
+    with self.argument_context('aks agentpool') as c:
+        c.argument('cluster_name', type=str, validator=validate_linux_host_name)
 
     # OpenShift command argument configuration
     with self.argument_context('openshift') as c:

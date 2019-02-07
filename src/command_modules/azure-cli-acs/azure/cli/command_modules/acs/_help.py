@@ -261,6 +261,9 @@ helps['aks create'] = """
         - name: --workspace-resource-id
           type: string
           short-summary: The resource ID of an existing Log Analytics Workspace to use for storing monitoring data. If not specified, uses the default Log Analytics Workspace if it exists, otherwise creates one.
+        - name: --enable-vmss
+          type: bool
+          short-summary: Enable VMSS agent pool type.
 
     examples:
         - name: Create a Kubernetes cluster with an existing SSH public key.
@@ -557,6 +560,54 @@ helps['aks wait'] = """
         - name: Wait for a cluster to be upgraded, polling every minute for up to thirty minutes.
           text: |-
             az aks wait -g MyResourceGroup -n MyManagedCluster --updated --interval 60 --timeout 1800
+"""
+helps['aks agentpool'] = """
+    type: group
+    short-summary: Commands to manage agent pools in Kubernetes kubernetes cluster.
+"""
+helps['aks agentpool show'] = """
+    type: command
+    short-summary: Show the details for an agnet pool in the managed Kubernetes cluster.
+"""
+
+helps['aks agentpool list'] = """
+    type: command
+    short-summary: List agent pools in the managed Kubernetes cluster.
+"""
+
+helps['aks agentpool add'] = """
+    type: command
+    short-summary: Add an agent pool to the managed Kubernetes cluster.
+    parameters:
+        - name: --agentpool-name
+          type: string
+          short-summary: Agent pool name.
+        - name: --node-vm-size -s
+          type: string
+          short-summary: Size of Virtual Machines to create as Kubernetes nodes.
+        - name: --node-count -c
+          type: int
+          short-summary: Number of nodes in the Kubernetes agent pool. After creating a cluster, you can change the
+                         size of its node pool with `az aks scale`.
+        - name: --node-osdisk-size
+          type: int
+          short-summary: Size in GB of the OS disk for each node in the agent pool. Minimum 30 GB.
+        - name: --max-pods -m
+          type: int
+          short-summary: The maximum number of pods deployable to a node.
+          long-summary: If not specified, defaults to 110, or 30 for advanced networking configurations.
+        - name: --vnet-subnet-id
+          type: string
+          short-summary: The ID of a subnet in an existing VNet into which to deploy the cluster.
+"""
+
+helps['aks agentpool delete'] = """
+    type: command
+    short-summary: Delete the agent pool in the managed Kubernetes cluster.
+    parameters:
+        - name: --agent-pool-name
+          type: string
+          short-summary: Agent pool name.
 """
 
 # OpenShift command help

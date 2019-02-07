@@ -54,10 +54,11 @@ from azure.mgmt.containerservice.models import ContainerServiceServicePrincipalP
 from azure.mgmt.containerservice.models import ContainerServiceSshConfiguration
 from azure.mgmt.containerservice.models import ContainerServiceSshPublicKey
 from azure.mgmt.containerservice.models import ContainerServiceStorageProfileTypes
-from azure.mgmt.containerservice.v2018_03_31.models import ManagedCluster
-from azure.mgmt.containerservice.v2018_03_31.models import ManagedClusterAADProfile
-from azure.mgmt.containerservice.v2018_03_31.models import ManagedClusterAddonProfile
-from azure.mgmt.containerservice.v2018_03_31.models import ManagedClusterAgentPoolProfile
+from azure.mgmt.containerservice.v2019_02_01.models import ManagedCluster
+from azure.mgmt.containerservice.v2019_02_01.models import ManagedClusterAADProfile
+from azure.mgmt.containerservice.v2019_02_01.models import ManagedClusterAddonProfile
+from azure.mgmt.containerservice.v2019_02_01.models import ManagedClusterAgentPoolProfile
+from azure.mgmt.containerservice.v2019_02_01.models import AgentPool
 from azure.mgmt.containerservice.models import OpenShiftManagedClusterAgentPoolProfile
 from azure.mgmt.containerservice.models import OpenShiftAgentPoolProfileRole
 from azure.mgmt.containerservice.models import OpenShiftManagedClusterIdentityProvider
@@ -71,6 +72,7 @@ from ._client_factory import cf_resource_groups
 from ._client_factory import get_auth_management_client
 from ._client_factory import get_graph_rbac_management_client
 from ._client_factory import cf_resources
+from ._client_factory import cf_managed_clusters
 
 logger = get_logger(__name__)
 
@@ -1437,7 +1439,9 @@ def aks_create(cmd, client, resource_group_name, name, ssh_key_value,  # pylint:
                no_ssh_key=False,
                disable_rbac=None,
                enable_rbac=None,
+               enable_vmss=True,
                skip_subnet_role_assignment=False,
+               enable_cluster_autoscaler=False,
                network_plugin=None,
                network_policy=None,
                pod_cidr=None,
@@ -1446,6 +1450,8 @@ def aks_create(cmd, client, resource_group_name, name, ssh_key_value,  # pylint:
                docker_bridge_address=None,
                enable_addons=None,
                workspace_resource_id=None,
+               min_count=None,
+               max_count=None,
                vnet_subnet_id=None,
                max_pods=0,
                aad_client_app_id=None,
@@ -1474,8 +1480,18 @@ def aks_create(cmd, client, resource_group_name, name, ssh_key_value,  # pylint:
         vnet_subnet_id=vnet_subnet_id,
         max_pods=int(max_pods) if max_pods else None
     )
+
+    if not enable_vmss:
+        agent_pool_profile.type = "AvailabilitySet"
+    else:
+        agent_pool_profile.type = "VirtualMachineScaleSets"
+
+    raise CLIError('agentpool type:'+ agent_pool_profile.type)
+
     if node_osdisk_size:
         agent_pool_profile.os_disk_size_gb = int(node_osdisk_size)
+
+    _check_cluster_autoscaler_flag(enable_cluster_autoscaler, min_count, max_count, node_count, agent_pool_profile)
 
     linux_profile = None
     # LinuxProfile is just used for SSH access to VMs, so omit it if --no-ssh-key was specified.
@@ -2469,3 +2485,91 @@ def openshift_scale(cmd, client, resource_group_name, name, compute_count, no_wa
     instance.auth_profile = None
 
     return sdk_no_wait(no_wait, client.create_or_update, resource_group_name, name, instance)
+
+def _check_cluster_autoscaler_flag(enable_cluster_autoscaler,
+                                   min_count,
+                                   max_count,
+                                   node_count,
+                                   agent_pool_profile):
+    if enable_cluster_autoscaler:
+        if min_count is None or max_count is None:
+            raise CLIError('Please specifying both min-count and max-count when --enable-cluster-autoscaler enabled')
+        if int(min_count) > int(max_count):
+            raise CLIError('value of min-count should be less than or equal to value of max-count')
+        if int(node_count) < int(min_count) or int(node_count) > int(max_count):
+            raise CLIError('node-count is not in the range of min-count and max-count')
+        agent_pool_profile.min_count = int(min_count)
+        agent_pool_profile.max_count = int(max_count)
+        agent_pool_profile.enable_auto_scaling = True
+    else:
+        if min_count is not None or max_count is not None:
+            raise CLIError('min-count and max-count are required for --enable-cluster-autoscaler, please use the flag')
+
+def aks_agentpool_show(cmd, client, resource_group_name, cluster_name, name):
+    instance = client.get(resource_group_name, cluster_name, name)
+    return instance
+
+def aks_agentpool_list(cmd, client, resource_group_name, name):
+    agent_pools = client.list(resource_group_name, name)
+    return _remove_nulls(list(agent_pools))
+
+def aks_agentpool_add(cmd, client, resource_group_name, cluster_name, name,
+                      node_vm_size="Standard_DS2_v2",
+                      node_osdisk_size=0,
+                      node_count=3,
+                      vnet_subnet_id=None,
+                      max_pods=0,
+                      no_wait=False):
+    print("resource group name is: " + resource_group_name)
+    print("agent pool name is: " + name)
+    print("cluster_name is: " + cluster_name)
+
+    #----- uncomment for E2E testing: check whether agentpool name is already used
+    #apList = client.list(resource_group_name, cluster_name)
+    #for ap in apList:
+    #    if ap.name == name:
+    #        raise CLIError("Agent pool {} already exists, please try a different name, "
+    #                       "use 'aks agentpool list' to get current list of node pool".format(name))
+
+    #----- uncomment for E2E testing: check whether agentpool name is already used
+    #mcClient = cf_managed_clusters(cmd.cli_ctx)
+    #mc = mcClient.get(resource_group_name, cluster_name)
+    # 1. if vnet_subnet_id is None, use the first agentpool's subnet? How do we determine which agentpool is 
+    # the first one? Or should we just make vnet_subet_id a required parameter?
+    # 2. advanced networking support (confirm with Anders)
+    # 3. New Agentpool parameters, max-count, min-count, auto-scaling? If autoscaling specified , then fail
+    # scaling operation
+
+    ap = AgentPool(
+        count=int(node_count),
+        vm_size=node_vm_size,
+        os_type="Linux",
+        storage_profile=ContainerServiceStorageProfileTypes.managed_disks,
+        vnet_subnet_id=vnet_subnet_id,
+        max_pods=int(max_pods) if max_pods else None
+    )
+    if node_osdisk_size:
+        ap.os_disk_size_gb = int(node_osdisk_size)
+
+    return sdk_no_wait(no_wait, client.create_or_update, resource_group_name, cluster_name, name, ap)
+
+
+def aks_agentpool_delete(cmd, client, resource_group_name, cluster_name, name,
+                         no_wait=False):
+    agentpool_exists = False
+
+    #----- uncomment for full feature--------------
+    #apList = client.list(resource_group_name, cluster_name)
+    #for ap in apList:
+    #    if ap.name == name:
+    #        agentpool_exists = True
+
+    #if not agentpool_exists:
+    #    raise CLIError("Agent pool {} doesnt exist, "
+    #                   "use 'aks agnetpool list' to get current agent pool list".format(name))
+
+    #----- uncomment for E2E testing: don't delete the last agent pool
+    #if len(apList) == 1:
+    #    raise CLIError("Only one agentpool left.")
+
+    return sdk_no_wait(no_wait, client.delete, resource_group_name, cluster_name, name)
